@@ -1,0 +1,68 @@
+import os
+os.environ['PYSPARK_SUBMIT_ARGS'] = '--jars /Users/fanrui/Al/mysql-connector-java-5.1.45-bin.jar pyspark-shell'
+
+from pyspark import SparkContext
+from pyspark.sql import SQLContext
+from pyspark.sql.types import *
+from pyspark.sql.session import SparkSession
+
+# Load relevant objects
+sc = SparkContext('local')
+sqlContext = SQLContext(sc)
+spark = SparkSession(sc)
+
+# Load data from mySQL
+dataframe_fromMysql = sqlContext.read.format("jdbc").options(
+    url='jdbc:mysql://localhost/Al',
+    driver='com.mysql.jdbc.Driver',
+    dbtable='customers',
+    user='root',
+    password='1234').load()
+
+# Get data from text file into Spark Dataframe
+dataframe_toMysql = spark.read.option("header", "true").csv("/Users/fanrui/Al/fraud")
+
+# Write the dataframe into Mysql test table
+dataframe_toMysql.write.format('jdbc').options(
+    url='jdbc:mysql://localhost/Al',
+    driver='com.mysql.jdbc.Driver',
+    dbtable='test',
+    user='root',
+    password='1234').mode('append').save()
+dataframe_toMysql.show()
+
+# Check by loading the data from mySQL test table
+dataframe_mysql = sqlContext.read.format("jdbc").options(
+    url='jdbc:mysql://localhost/Al',
+    driver='com.mysql.jdbc.Driver',
+    dbtable='test',
+    user='root',
+    password='1234').load()
+dataframe_mysql.show()
+
+# Here, since we found that there are corrupted data in the file, we want to force the schema to prevent data loss
+schema = StructType([
+    StructField("credit_card_number", StringType(), True),
+        StructField("ipv4", StringType(), True),
+        StructField("state", StringType(), True)])
+
+# Read textfile into the schema
+testdf=spark.read.option("header","true").csv('/Users/fanrui/Al/fraud', schema=schema)
+testdf.show()
+
+# Write the dataframe into mysql testState table
+testdf.write.format('jdbc').options(
+    url='jdbc:mysql://localhost/Al',
+    driver='com.mysql.jdbc.Driver',
+    dbtable='testState',
+    user='root',
+    password='1234').mode('overwrite').save()
+
+# Load the data from mysql testState table to check
+dataframe_mysql = sqlContext.read.format("jdbc").options(
+    url='jdbc:mysql://localhost/Al',
+    driver='com.mysql.jdbc.Driver',
+    dbtable='testState',
+    user='root',
+    password='1234').load()
+dataframe_mysql.show()
